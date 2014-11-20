@@ -1,3 +1,3 @@
 ﻿public Contact Get() {
-	return new Contact { Name = "Glenn Block" };
+	return new Contact { Name = "Mads TT" };
 }

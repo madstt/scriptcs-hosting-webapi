@@ -9,6 +9,8 @@ using System.Web.Http.Dispatcher;
 using Common.Logging;
 using log4net;
 using ScriptCs.Contracts;
+using ScriptCs.Engine.Roslyn;
+using LogLevel = ScriptCs.Contracts.LogLevel;
 using LogManager = log4net.LogManager;
 
 namespace ScriptCs.Hosting.WebApi
@@ -34,14 +36,18 @@ namespace ScriptCs.Hosting.WebApi
 
         public HttpConfiguration Build()
         {
-            var logger = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-        var commonLogger = new CodeConfigurableLog4NetLogger(logger);
-
             IList<Func<string, ScriptClass>> typeStrategies = new List<Func<string, ScriptClass>>(_typeStrategies);
-            var services = new ScriptServicesBuilder(new ScriptConsole(), commonLogger).
-                FilePreProcessor<WebApiFilePreProcessor>().Build();
+            var console = new ScriptConsole();
+            var configurator = new LoggerConfigurator(LogLevel.Debug);
+            configurator.Configure(console);
+            var logger = configurator.GetLogger();
+            var builder = new ScriptServicesBuilder(console, logger);
+            builder.ScriptEngine<RoslynScriptEngine>();
+            builder.FilePreProcessor<WebApiFilePreProcessor>();
+            var services = builder.Build();
 
             var preProcessor = (WebApiFilePreProcessor) services.FilePreProcessor;
+
             typeStrategies.Add(ControllerStategy);
             preProcessor.SetClassStrategies(typeStrategies);
             preProcessor.LoadSharedCode(Path.Combine(_scriptsPath, "Shared"));
@@ -53,7 +59,7 @@ namespace ScriptCs.Hosting.WebApi
         {
             IList<Type> controllers = new List<Type>();
             var packs = services.ScriptPackResolver.GetPacks().Union(new List<IScriptPack>() { new WebApiScriptHack() });
-            services.Executor.Initialize(services.AssemblyResolver.GetAssemblyPaths(_scriptsPath, _scriptsPath), packs);
+            services.Executor.Initialize(services.AssemblyResolver.GetAssemblyPaths(_scriptsPath), packs);
             var scripts = services.FileSystem.EnumerateFiles(_scriptsPath, "*.csx", SearchOption.TopDirectoryOnly);
             foreach (var script in scripts)
             {
